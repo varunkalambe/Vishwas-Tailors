@@ -1,0 +1,2289 @@
+PROJECT: tailorpro-app
+ROOT: D:\Downloads\tailorpro-app\tailorpro-app
+================================================================================
+
+
+===== FILE: .gitignore =====
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+===== FILE: c.py =====
+
+#!/usr/bin/env python3
+"""
+Combine entire codebase into a single combined_output.txt file.
+Targets React + Tailwind + Supabase projects on macOS.
+Usage: python3 combine_codebase.py [/path/to/project]
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# ── CONFIG ──────────────────────────────────────────────────────────────
+INCLUDE_EXTENSIONS = {
+    # JS / TS / React
+    '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+    # Styling
+    '.css', '.scss', '.sass', '.less', '.postcss',
+    # Markup / Templates
+    '.html', '.htm', '.vue', '.svelte',
+    # Config
+    '.json', '.yaml', '.yml', '.toml', '.ini', '.env.example',
+    # Supabase / DB
+    '.sql', '.prisma',
+    # Python (edge functions / scripts)
+    '.py',
+    # Docs
+    '.md', '.mdx', '.txt',
+    # Shell
+    '.sh', '.bash', '.zsh',
+    # Misc
+    '.graphql', '.gql',
+}
+
+INCLUDE_FILENAMES = {
+    'Dockerfile', 'docker-compose.yml', '.gitignore', '.dockerignore',
+    '.eslintrc', '.prettierrc', '.babelrc', '.editorconfig',
+    'tailwind.config.js', 'tailwind.config.ts',
+    'postcss.config.js', 'postcss.config.ts',
+    'vite.config.js', 'vite.config.ts',
+    'next.config.js', 'next.config.mjs',
+    'tsconfig.json', 'jsconfig.json',
+    'package.json', 'pnpm-lock.yaml',
+    'supabase.config.toml',
+    'README', 'LICENSE', 'CHANGELOG',
+}
+
+EXCLUDE_DIRS = {
+    'node_modules', '.next', '.nuxt', 'dist', 'build', 'out',
+    '.git', '.svn', '.hg',
+    '.vscode', '.idea', '.DS_Store',
+    'coverage', '.nyc_output',
+    '__pycache__', '.pytest_cache', '.mypy_cache',
+    '.turbo', '.vercel', '.netlify',
+    'public/assets', 'storybook-static',
+    '.cache', 'tmp', 'temp',
+    '.supabase',
+}
+
+EXCLUDE_FILES = {
+    'package-lock.json', 'yarn.lock',
+    '.env', '.env.local', '.env.production', '.env.development',
+    'combined_output.txt',
+}
+
+MAX_FILE_SIZE_MB = 2  # Skip files larger than this
+
+
+def should_include(file_path: Path, project_root: Path) -> bool:
+    # Exclude by filename
+    if file_path.name in EXCLUDE_FILES:
+        return False
+
+    # Skip anything inside excluded dirs
+    try:
+        rel_parts = file_path.relative_to(project_root).parts
+    except ValueError:
+        return False
+    if any(part in EXCLUDE_DIRS for part in rel_parts):
+        return False
+
+    # Skip hidden files except known config
+    if file_path.name.startswith('.') and file_path.name not in INCLUDE_FILENAMES:
+        if file_path.suffix not in INCLUDE_EXTENSIONS:
+            return False
+
+    # Include by explicit filename
+    if file_path.name in INCLUDE_FILENAMES:
+        return True
+
+    # Include by extension
+    if file_path.suffix.lower() in INCLUDE_EXTENSIONS:
+        return True
+
+    return False
+
+
+def is_binary(file_path: Path) -> bool:
+    try:
+        with open(file_path, 'rb') as f:
+            chunk = f.read(1024)
+            return b'\0' in chunk
+    except Exception:
+        return True
+
+
+def combine(project_root: Path, output_file: Path) -> None:
+    project_root = project_root.resolve()
+    files_included = 0
+    files_skipped = 0
+    total_bytes = 0
+
+    with open(output_file, 'w', encoding='utf-8') as out:
+        out.write(f"PROJECT: {project_root.name}\n")
+        out.write(f"ROOT: {project_root}\n")
+        out.write("=" * 80 + "\n\n")
+
+        for file_path in sorted(project_root.rglob('*')):
+            if not file_path.is_file():
+                continue
+
+            if not should_include(file_path, project_root):
+                files_skipped += 1
+                continue
+
+            try:
+                size_mb = file_path.stat().st_size / (1024 * 1024)
+                if size_mb > MAX_FILE_SIZE_MB:
+                    print(f"SKIP (too large {size_mb:.1f}MB): {file_path.relative_to(project_root)}")
+                    files_skipped += 1
+                    continue
+
+                if is_binary(file_path):
+                    files_skipped += 1
+                    continue
+
+                rel_path = file_path.relative_to(project_root)
+                content = file_path.read_text(encoding='utf-8', errors='replace')
+
+                out.write(f"\n===== FILE: {rel_path} =====\n\n")
+                out.write(content)
+                if not content.endswith('\n'):
+                    out.write('\n')
+
+                files_included += 1
+                total_bytes += len(content)
+                print(f"OK: {rel_path}")
+
+            except Exception as e:
+                print(f"ERROR reading {file_path}: {e}")
+                files_skipped += 1
+
+    print("\n" + "=" * 60)
+    print(f"Output:   {output_file}")
+    print(f"Included: {files_included} files")
+    print(f"Skipped:  {files_skipped} files")
+    print(f"Size:     {total_bytes / 1024:.1f} KB")
+    print("=" * 60)
+
+
+if __name__ == '__main__':
+    project_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
+
+    if not project_path.exists():
+        print(f"Path does not exist: {project_path}")
+        sys.exit(1)
+
+    output = project_path / 'combined_output.txt'
+    combine(project_path, output)
+
+===== FILE: eslint.config.js =====
+
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import { defineConfig, globalIgnores } from 'eslint/config'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{js,jsx}'],
+    extends: [
+      js.configs.recommended,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        ecmaFeatures: { jsx: true },
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+])
+
+===== FILE: index.html =====
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tailorpro-app</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+===== FILE: package.json =====
+
+{
+  "name": "tailorpro-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
+    "date-fns": "^4.1.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.14.1",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "tailwindcss": "^4.2.2",
+    "vite": "^8.0.8"
+  }
+}
+
+===== FILE: README.md =====
+
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+"# Vishwas-Tailor" 
+
+===== FILE: src\App.jsx =====
+
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import CustomerList from "./pages/CustomerList";
+import AddCustomer from "./pages/AddCustomer";
+import CustomerDetail from "./pages/CustomerDetail";
+import Analytics from "./pages/Analytics";
+import PrivateRoute from "./components/PrivateRoute";
+import Layout from "./components/Layout";
+
+export default function App() {
+  return (
+    <>
+      <Toaster position="top-right" />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/customers" element={<CustomerList />} />
+          <Route path="/customers/new" element={<AddCustomer />} />
+          <Route path="/customers/:id" element={<CustomerDetail />} />
+          <Route path="/customers/:id/edit" element={<AddCustomer />} />
+          <Route path="/analytics" element={<Analytics />} />
+        </Route>
+
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </>
+  );
+}
+
+===== FILE: src\components\Layout.jsx =====
+
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar.jsx';
+
+export default function Layout() {
+  return (
+    <div className="flex min-h-screen bg-surface">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\components\OrderCard.jsx =====
+
+import { format } from 'date-fns';
+import StatusBadge from './StatusBadge';
+import { useOrders } from '../hooks/useOrders';
+
+export default function OrderCard({ order }) {
+  const { updateOrder } = useOrders(order.customer_id);
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Bill No.</p>
+          <p className="font-bold text-gray-900 text-lg">{order.bill_no || '—'}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Amount</p>
+          <p className="text-2xl font-bold text-gray-900">₹{Number(order.amount).toLocaleString('en-IN')}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm mb-3 pb-3 border-b border-gray-100">
+        <div>
+          <p className="text-gray-500 text-xs">Order Date</p>
+          <p className="font-medium">{order.order_date ? format(new Date(order.order_date), 'dd MMM yyyy') : '—'}</p>
+        </div>
+        <div>
+          <p className="text-gray-500 text-xs">Delivery</p>
+          <p className="font-medium">{order.delivery_date ? format(new Date(order.delivery_date), 'dd MMM yyyy') : '—'}</p>
+        </div>
+      </div>
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <StatusBadge status={order.status} />
+        <StatusBadge paymentStatus={order.payment_status} />
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          order.payment_mode === 'cash' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+        }`}>
+          {order.payment_mode === 'cash' ? 'Cash' : 'Online'}
+        </span>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        {order.status === 'pending' && (
+          <button onClick={() => updateOrder(order.id, { status: 'delivered' })}
+            className="text-xs px-3 py-1.5 bg-accent hover:bg-accent-dark text-white rounded-md font-medium">
+            Mark Delivered
+          </button>
+        )}
+        {order.status === 'delivered' && (
+          <button onClick={() => updateOrder(order.id, { status: 'pending' })}
+            className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-medium">
+            Mark Undelivered
+          </button>
+        )}
+        {order.payment_status === 'unpaid' && (
+          <button onClick={() => updateOrder(order.id, { payment_status: 'paid' })}
+            className="text-xs px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-md font-medium">
+            Mark Paid
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\components\PaymentSelector.jsx =====
+
+export default function PaymentSelector({ value, onChange }) {
+  return (
+    <div className="flex gap-2">
+      {['cash', 'online'].map(key => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`flex-1 py-2 rounded border-2 text-sm font-medium transition ${
+            value === key
+              ? 'border-accent bg-accent text-white'
+              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+          }`}
+        >
+          {key === 'cash' ? 'Cash' : 'Online'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+===== FILE: src\components\PrivateRoute.jsx =====
+
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
+
+export default function PrivateRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+===== FILE: src\components\Sidebar.jsx =====
+
+import { useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth.jsx';
+
+export default function Sidebar() {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const links = [
+  { path: '/dashboard', label: 'Dashboard', end: true },
+  { path: '/customers/new', label: 'Add Customer', end: true },
+  { path: '/customers', label: 'Customer List', end: true },
+  { path: '/analytics', label: 'Analytics', end: true },
+];
+
+  const handleLogout = () => {
+    signOut();
+    navigate('/login');
+  };
+
+  const navContent = (
+    <>
+      <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-white/50 mb-0.5">Tailor Management</p>
+          <h1 className="text-base font-semibold tracking-wide text-white">Vishwas Tailor</h1>
+        </div>
+        <button
+          className="md:hidden text-white/60 text-2xl leading-none"
+          onClick={() => setMobileOpen(false)}
+        >
+          ×
+        </button>
+      </div>
+
+      <nav className="flex-1 p-3 space-y-0.5 mt-1">
+        {links.map(link => (
+          <NavLink
+            key={link.path}
+            to={link.path}
+            end={link.end}
+            onClick={() => setMobileOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center px-4 py-2.5 rounded-md transition text-sm ${
+                isActive
+                  ? 'bg-white text-primary font-semibold'
+                  : 'text-white/80 hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="p-3 border-t border-white/10">
+        <button
+          onClick={handleLogout}
+          className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 text-white/90 rounded-md text-sm font-medium transition"
+        >
+          Sign Out
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <button
+        className="md:hidden fixed top-3 right-3 z-50 bg-primary text-white p-2 rounded-md"
+        onClick={() => setMobileOpen(true)}
+      >
+        ☰
+      </button>
+
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
+      )}
+
+      <aside className={`md:hidden fixed inset-y-0 left-0 z-50 w-60 bg-primary text-white flex flex-col transform transition-transform ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {navContent}
+      </aside>
+
+      <aside className="hidden md:flex w-52 bg-primary text-white min-h-screen flex-col">
+        {navContent}
+      </aside>
+    </>
+  );
+}
+
+===== FILE: src\components\StatusBadge.jsx =====
+
+export default function StatusBadge({ status, paymentStatus }) {
+  if (paymentStatus) {
+    const isPaid = paymentStatus === 'paid';
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+        isPaid ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'
+      }`}>
+        {isPaid ? '✓ Paid' : '◌ Unpaid'}
+      </span>
+    );
+  }
+
+  const isPending = status === 'pending';
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+      isPending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+    }`}>
+      {isPending ? '⏳ Pending' : '✓ Delivered'}
+    </span>
+  );
+}
+
+===== FILE: src\components\SummaryCard.jsx =====
+
+export default function SummaryCard({ title, value, icon, color = 'blue' }) {
+  const colors = {
+    blue:   'bg-blue-50 text-blue-700',
+    green:  'bg-green-50 text-green-700',
+    amber:  'bg-amber-50 text-amber-700',
+    purple: 'bg-purple-50 text-purple-700',
+    red:    'bg-red-50 text-red-700',
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-gray-500 font-medium">{title}</p>
+          <p className="text-3xl font-bold mt-2 text-gray-900">{value}</p>
+        </div>
+        <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${colors[color]}`}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\hooks\useAuth.jsx =====
+
+import { createContext, useContext, useState } from "react";
+
+const AuthContext = createContext(null);
+
+const STORAGE_KEY = "tailorpro_auth";
+const VALID_USERNAME = "vishwas";
+const VALID_PASSWORD = "vishwas@tailor";
+
+export function AuthProvider({ children }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    localStorage.getItem(STORAGE_KEY) === "authenticated"
+  );
+
+  function signIn(username, password) {
+    if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+      localStorage.setItem(STORAGE_KEY, "authenticated");
+      setIsAuthenticated(true);
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: "Invalid username or password",
+    };
+  }
+
+  function signOut() {
+    localStorage.removeItem(STORAGE_KEY);
+    setIsAuthenticated(false);
+  }
+
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, signIn, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+===== FILE: src\hooks\useCustomers.js =====
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+
+export function useCustomers() {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCustomers = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) toast.error('Failed to load customers');
+    else setCustomers(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+
+  async function addCustomer(customer) {
+    const { data, error } = await supabase
+      .from('customers')
+      .insert([customer])
+      .select()
+      .single();
+    if (error) { toast.error('Failed to add customer'); return null; }
+    await fetchCustomers();
+    return data;
+  }
+
+  async function updateCustomer(id, updates) {
+    const { error } = await supabase.from('customers').update(updates).eq('id', id);
+    if (error) { toast.error('Failed to update customer'); return; }
+    await fetchCustomers();
+  }
+
+  async function deleteCustomer(id) {
+    const { error } = await supabase.from('customers').delete().eq('id', id);
+    if (error) { toast.error('Failed to delete'); return false; }
+    toast.success('Customer deleted');
+    await fetchCustomers();
+    return true;
+  }
+
+  function searchCustomers(query) {
+    const q = (query || '').toLowerCase();
+    return customers.filter(c =>
+      c.name?.toLowerCase().includes(q) ||
+      c.phone?.includes(q)
+    );
+  }
+
+  return { customers, loading, addCustomer, updateCustomer, deleteCustomer, searchCustomers, refetch: fetchCustomers };
+}
+
+===== FILE: src\hooks\useOrders.js =====
+
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+
+export function useOrders(customerId = null) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    let query = supabase
+      .from('orders')
+      .select('*, customers(name, phone)')
+      .order('created_at', { ascending: false });
+
+    if (customerId) query = query.eq('customer_id', customerId);
+
+    const { data, error } = await query;
+    if (error) toast.error('Failed to load orders');
+    else setOrders(data || []);
+    setLoading(false);
+  }, [customerId]);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  async function addOrder(order) {
+    const { data: orderData, error: orderError } = await supabase
+      .from('orders')
+      .insert([order])
+      .select()
+      .single();
+
+    if (orderError) { toast.error('Failed to create order'); return null; }
+
+    toast.success('Order created');
+    await fetchOrders();
+    return orderData;
+  }
+
+  async function updateOrder(id, updates) {
+    const { error } = await supabase.from('orders').update(updates).eq('id', id);
+    if (error) { toast.error('Update failed'); return; }
+    toast.success('Updated');
+    await fetchOrders();
+  }
+
+  async function deleteOrder(id) {
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) { toast.error('Failed to delete order'); return; }
+    toast.success('Order deleted');
+    await fetchOrders();
+  }
+
+  function getPendingCount() {
+    return orders.filter(o => o.status === 'pending').length;
+  }
+
+  function getDeliveredCount() {
+    return orders.filter(o => o.status === 'delivered').length;
+  }
+
+  async function getRevenueByMonth(from, to) {
+    let query = supabase
+      .from('orders')
+      .select('amount, payment_status, payment_mode, order_date')
+      .eq('payment_status', 'paid');
+    if (from) query = query.gte('order_date', from);
+    if (to) query = query.lte('order_date', to);
+    const { data } = await query;
+    return data || [];
+  }
+
+  async function getPaymentModeSplit() {
+    const { data } = await supabase
+      .from('orders')
+      .select('payment_mode, amount, payment_status')
+      .eq('payment_status', 'paid');
+    return data || [];
+  }
+
+  return {
+    orders, loading,
+    addOrder, updateOrder, deleteOrder,
+    getPendingCount, getDeliveredCount,
+    getRevenueByMonth, getPaymentModeSplit,
+    refetch: fetchOrders,
+  };
+}
+
+===== FILE: src\index.css =====
+
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #446196;
+  --color-primary-dark: #3a5280;
+  --color-primary-light: #3b82f6;
+  --color-accent: #16a34a;
+  --color-accent-dark: #15803d;
+  --color-surface: #f8fafc;
+}
+
+body {
+  background-color: var(--color-surface);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+===== FILE: src\lib\supabase.js =====
+
+import { createClient } from '@supabase/supabase-js';
+
+const url = import.meta.env.VITE_SUPABASE_URL;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!url || !key) {
+  throw new Error('Missing Supabase env vars. Check .env.local');
+}
+
+export const supabase = createClient(url, key);
+
+===== FILE: src\main.jsx =====
+
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import "./index.css";
+import App from "./App.jsx";
+import { AuthProvider } from "./hooks/useAuth";
+
+createRoot(document.getElementById("root")).render(
+  <StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
+  </StrictMode>
+);
+
+===== FILE: src\pages\AddCustomer.jsx =====
+
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { useCustomers } from '../hooks/useCustomers';
+import { useOrders } from '../hooks/useOrders';
+import toast from 'react-hot-toast';
+
+const emptyTrouser = {
+  length: '', waist: '', hip: '', bottom: '', knee: '', thigh: '',
+  fly: '', th: '', stitching: 'yes', k: '', kp: '', bp: '', sp: '',
+};
+
+const emptyShirt = {
+  length: '', chest: '',
+  sleeves: '', waist: '', shoulder: '', cuff: '',
+  buShirt: false, buCut: false, appleCut: false,
+};
+
+/* ── Apple-style toggle helper ─────────────────────────────────────── */
+function AppleToggle({ value, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        width: '44px',
+        height: '26px',
+        borderRadius: '13px',
+        border: 'none',
+        outline: 'none',
+        cursor: 'pointer',
+        transition: 'background-color 0.22s ease',
+        backgroundColor: value ? '#34C759' : '#D1D5DB',
+        padding: 0,
+        flexShrink: 0,
+      }}
+      aria-pressed={value}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: '3px',
+          left: value ? '21px' : '3px',
+          width: '20px',
+          height: '20px',
+          borderRadius: '50%',
+          backgroundColor: 'white',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.28)',
+          transition: 'left 0.22s ease',
+        }}
+      />
+    </button>
+  );
+}
+
+export default function AddCustomer() {
+  const { id } = useParams();
+  const isEdit = !!id;
+  const navigate = useNavigate();
+  const { addCustomer, deleteCustomer } = useCustomers();
+  const { addOrder } = useOrders(isEdit ? id : null);
+
+  const [form, setForm] = useState({
+    serial_no: '', name: '', phone: '', date: '', delivery_date: '', notes: '',
+  });
+  const [trouserEnabled, setTrouserEnabled] = useState(true);
+  const [shirtEnabled, setShirtEnabled] = useState(true);
+  const [trouser, setTrouser] = useState(emptyTrouser);
+  const [shirt, setShirt] = useState(emptyShirt);
+  const [billNo, setBillNo] = useState('');
+  const [amount, setAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState('cash');
+  const [paymentStatus, setPaymentStatus] = useState('unpaid');
+  const [orderId, setOrderId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isEdit) loadCustomer();
+  }, [id]);
+
+  async function loadCustomer() {
+    const { data: customer, error: cErr } = await supabase
+      .from('customers').select('*').eq('id', id).single();
+    if (cErr || !customer) {
+      toast.error('Failed to load customer');
+      return;
+    }
+
+    // Base form from customer row
+    setForm({
+      serial_no: customer.serial_no || '',
+      name: customer.name || '',
+      phone: customer.phone || '',
+      date: '',          // will be overwritten from order below
+      delivery_date: '', // will be overwritten from order below
+      notes: customer.notes || '',
+    });
+
+    // Load measurements
+    const { data: measurements } = await supabase
+      .from('measurements')
+      .select('*')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false });
+
+    const t = measurements?.find(m => m.type === 'trouser');
+    const s = measurements?.find(m => m.type === 'shirt');
+
+    if (t?.data) {
+      setTrouser({ ...emptyTrouser, ...t.data });
+      setTrouserEnabled(true);
+    } else {
+      setTrouserEnabled(false);
+    }
+
+    if (s?.data) {
+      setShirt({ ...emptyShirt, ...s.data });
+      setShirtEnabled(true);
+    } else {
+      setShirtEnabled(false);
+    }
+
+    // Load latest order — populate bill/amount/payment + dates
+    const { data: latestOrder } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestOrder) {
+      setOrderId(latestOrder.id);
+      setBillNo(latestOrder.bill_no || '');
+      setAmount(latestOrder.amount != null ? String(latestOrder.amount) : '');
+      setPaymentMode(latestOrder.payment_mode || 'cash');
+      setPaymentStatus(latestOrder.payment_status || 'unpaid');
+      // ── FIX: use order_date for the "Order Date" field, not customer.created_at
+      setForm(prev => ({
+        ...prev,
+        date: latestOrder.order_date
+          ? latestOrder.order_date.slice(0, 10)
+          : customer.created_at?.slice(0, 10) || '',
+        delivery_date: latestOrder.delivery_date
+          ? latestOrder.delivery_date.slice(0, 10)
+          : '',
+      }));
+    } else {
+      // No order yet — pre-fill date from customer created_at
+      setForm(prev => ({
+        ...prev,
+        date: customer.created_at?.slice(0, 10) || '',
+      }));
+    }
+  }
+
+  const handleFormChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const handleTrouserChange = (field, value) => setTrouser(prev => ({ ...prev, [field]: value }));
+  const handleShirtChange = (field, value) => setShirt(prev => ({ ...prev, [field]: value }));
+
+  async function handleSave() {
+    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    setSaving(true);
+
+    try {
+      if (isEdit) {
+        /* ─── 1. Update customer row ──────────────────────────────────── */
+        const { error: custErr } = await supabase
+          .from('customers')
+          .update({
+            name: form.name,
+            phone: form.phone,
+            serial_no: form.serial_no,
+            notes: form.notes,
+          })
+          .eq('id', id);
+        if (custErr) throw custErr;
+
+        /* ─── 2. Upsert trouser measurements ─────────────────────────── */
+        if (trouserEnabled) {
+          const { error: tErr } = await supabase
+            .from('measurements')
+            .upsert(
+              { customer_id: id, type: 'trouser', data: trouser },
+              { onConflict: 'customer_id,type' }
+            );
+          if (tErr) {
+            console.warn('Trouser upsert error (may be missing unique constraint):', tErr);
+            // Fallback: delete old + insert fresh
+            await supabase.from('measurements')
+              .delete().eq('customer_id', id).eq('type', 'trouser');
+            await supabase.from('measurements')
+              .insert({ customer_id: id, type: 'trouser', data: trouser });
+          }
+        } else {
+          await supabase.from('measurements')
+            .delete().eq('customer_id', id).eq('type', 'trouser');
+        }
+
+        /* ─── 3. Upsert shirt measurements ───────────────────────────── */
+        if (shirtEnabled) {
+          const { error: sErr } = await supabase
+            .from('measurements')
+            .upsert(
+              { customer_id: id, type: 'shirt', data: shirt },
+              { onConflict: 'customer_id,type' }
+            );
+          if (sErr) {
+            console.warn('Shirt upsert error (may be missing unique constraint):', sErr);
+            // Fallback: delete old + insert fresh
+            await supabase.from('measurements')
+              .delete().eq('customer_id', id).eq('type', 'shirt');
+            await supabase.from('measurements')
+              .insert({ customer_id: id, type: 'shirt', data: shirt });
+          }
+        } else {
+          await supabase.from('measurements')
+            .delete().eq('customer_id', id).eq('type', 'shirt');
+        }
+
+        /* ─── 4. Update or create order ──────────────────────────────── */
+        if (orderId) {
+          const orderPayload = {
+            bill_no: billNo,
+            amount: Number(amount) || 0,
+            delivery_date: form.delivery_date || null,
+            payment_mode: paymentMode,
+            payment_status: paymentStatus,
+          };
+          // Only update order_date if the user has a value
+          if (form.date) orderPayload.order_date = form.date;
+
+          const { error: oErr } = await supabase
+            .from('orders')
+            .update(orderPayload)
+            .eq('id', orderId);
+          if (oErr) throw oErr;
+        } else if (billNo || amount) {
+          // No existing order — create one
+          const { error: oErr } = await supabase.from('orders').insert([{
+            customer_id: id,
+            bill_no: billNo,
+            amount: Number(amount) || 0,
+            order_date: form.date || new Date().toISOString().slice(0, 10),
+            delivery_date: form.delivery_date || null,
+            status: 'pending',
+            payment_status: paymentStatus,
+            payment_mode: paymentMode,
+          }]);
+          if (oErr) throw oErr;
+        }
+
+        toast.success('Customer updated');
+        navigate(`/customers/${id}`);
+
+      } else {
+        /* ─── ADD NEW CUSTOMER ───────────────────────────────────────── */
+        const customer = await addCustomer({
+          name: form.name,
+          phone: form.phone,
+          serial_no: form.serial_no,
+          notes: form.notes,
+        });
+        if (!customer) { setSaving(false); return; }
+
+        const measurements = [];
+        if (trouserEnabled) measurements.push({ customer_id: customer.id, type: 'trouser', data: trouser });
+        if (shirtEnabled)   measurements.push({ customer_id: customer.id, type: 'shirt',   data: shirt   });
+
+        if (measurements.length > 0) {
+          await supabase.from('measurements').insert(measurements);
+        }
+
+        if (billNo || amount) {
+          await addOrder({
+            customer_id: customer.id,
+            bill_no: billNo,
+            amount: Number(amount) || 0,
+            order_date: form.date || new Date().toISOString().slice(0, 10),
+            delivery_date: form.delivery_date || null,
+            status: 'pending',
+            payment_status: paymentStatus,
+            payment_mode: paymentMode,
+          });
+        }
+
+        toast.success('Customer added');
+        navigate(`/customers/${customer.id}`);
+      }
+    } catch (err) {
+      toast.error('Save failed: ' + (err?.message || 'unknown error'));
+      console.error('Save error:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!isEdit) return;
+    if (!orderId) { toast.error('No order to delete'); return; }
+    if (!confirm('Delete this order for ' + form.name + '?')) return;
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (error) { toast.error('Failed to delete order'); return; }
+    toast.success('Order deleted');
+    navigate(`/customers/${id}`);
+  }
+
+  const inputCls = "w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none";
+  const labelCls = "text-xs text-gray-500 mb-1 block";
+  const measureInput = "w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-primary outline-none";
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-4 px-2 sm:px-0">
+      <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Edit Customer' : 'Add Customer'}</h1>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          {/* ── Basic Info ──────────────────────────────────────────────── */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700 border-b pb-1">Basic Info</h2>
+            <div>
+              <label className={labelCls}>Serial No</label>
+              <input className={inputCls} value={form.serial_no} onChange={e => handleFormChange('serial_no', e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Name</label>
+              <input className={inputCls} value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Contact No</label>
+              <input className={inputCls} value={form.phone} onChange={e => handleFormChange('phone', e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Order Date</label>
+              <input type="date" className={inputCls} value={form.date} onChange={e => handleFormChange('date', e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Delivery Date</label>
+              <input type="date" className={inputCls} value={form.delivery_date} onChange={e => handleFormChange('delivery_date', e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Bill No</label>
+              <input className={inputCls} value={billNo} onChange={e => setBillNo(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Amount</label>
+              <input type="number" className={inputCls} value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Payment Mode</label>
+              <div className="flex gap-2">
+                {['cash', 'online'].map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPaymentMode(mode)}
+                    className={`flex-1 py-2 rounded text-sm font-medium transition border ${
+                      paymentMode === mode
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {mode === 'cash' ? 'Cash' : 'Online'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Payment Status</label>
+              <div className="flex gap-2">
+                {['unpaid', 'paid'].map(status => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setPaymentStatus(status)}
+                    className={`flex-1 py-2 rounded text-sm font-medium transition border ${
+                      paymentStatus === status
+                        ? 'bg-accent text-white border-accent'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    {status === 'paid' ? '✓ Paid' : 'Unpaid'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Trouser ─────────────────────────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b pb-1">
+              <h2 className="text-sm font-semibold text-gray-700">Trouser</h2>
+              <AppleToggle value={trouserEnabled} onChange={setTrouserEnabled} />
+            </div>
+
+            {trouserEnabled && (
+              <div className="space-y-2">
+                {[
+                  ['Length', 'length'], ['Waist', 'waist'], ['Hip', 'hip'],
+                  ['Bottom', 'bottom'], ['Knee', 'knee'], ['Thigh', 'thigh'],
+                ].map(([label, key]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{label}</span>
+                    <input
+                      className={measureInput}
+                      value={trouser[key]}
+                      onChange={e => handleTrouserChange(key, e.target.value)}
+                    />
+                  </div>
+                ))}
+
+                {[['Fly', 'fly'], ['Th', 'th']].map(([label, key]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{label}</span>
+                    <input
+                      className={measureInput}
+                      value={trouser[key]}
+                      onChange={e => handleTrouserChange(key, e.target.value)}
+                    />
+                  </div>
+                ))}
+
+                {/* Stitching — Yes / No selector */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Stitching</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleTrouserChange('stitching', 'yes')}
+                      className={`px-3 py-1 rounded text-xs font-medium border transition ${
+                        trouser.stitching === 'yes'
+                          ? 'bg-green-500 text-white border-green-500'
+                          : 'bg-white text-gray-500 border-gray-300 hover:border-green-400'
+                      }`}
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTrouserChange('stitching', 'no')}
+                      className={`px-3 py-1 rounded text-xs font-medium border transition ${
+                        trouser.stitching === 'no'
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-white text-gray-500 border-gray-300 hover:border-red-400'
+                      }`}
+                    >
+                      No
+                    </button>
+                  </div>
+                </div>
+
+                {/* K, KP, BP, SP */}
+                {[['K', 'k'], ['KP', 'kp'], ['BP', 'bp'], ['SP', 'sp']].map(([label, key]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{label}</span>
+                    <input
+                      className={measureInput}
+                      value={trouser[key]}
+                      onChange={e => handleTrouserChange(key, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Shirt ───────────────────────────────────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b pb-1">
+              <h2 className="text-sm font-semibold text-gray-700">Shirt</h2>
+              <AppleToggle value={shirtEnabled} onChange={setShirtEnabled} />
+            </div>
+
+            {shirtEnabled && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Length</span>
+                  <input className={measureInput} value={shirt.length} onChange={e => handleShirtChange('length', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Chest</span>
+                  <input className={measureInput} value={shirt.chest} onChange={e => handleShirtChange('chest', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Sleeves</span>
+                  <input className={measureInput} value={shirt.sleeves} onChange={e => handleShirtChange('sleeves', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Waist</span>
+                  <input className={measureInput} value={shirt.waist} onChange={e => handleShirtChange('waist', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Shoulder</span>
+                  <input className={measureInput} value={shirt.shoulder} onChange={e => handleShirtChange('shoulder', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Cuff</span>
+                  <input className={measureInput} value={shirt.cuff} onChange={e => handleShirtChange('cuff', e.target.value)} />
+                </div>
+
+                {/* BU-Shirt toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">BU-Shirt</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${shirt.buShirt ? 'text-green-600' : 'text-gray-400'}`}>
+                      {shirt.buShirt ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={shirt.buShirt} onChange={val => handleShirtChange('buShirt', val)} />
+                  </div>
+                </div>
+
+                {/* BU-Cut toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">BU-Cut</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${shirt.buCut ? 'text-green-600' : 'text-gray-400'}`}>
+                      {shirt.buCut ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={shirt.buCut} onChange={val => handleShirtChange('buCut', val)} />
+                  </div>
+                </div>
+
+                {/* Apple Cut toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Apple Cut</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${shirt.appleCut ? 'text-green-600' : 'text-gray-400'}`}>
+                      {shirt.appleCut ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={shirt.appleCut} onChange={val => handleShirtChange('appleCut', val)} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Bottom section ──────────────────────────────────────────── */}
+        <div className="mt-5 pt-4 border-t border-gray-200 space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">Note:</span>
+            <input
+              className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+              placeholder="Any special instructions..."
+              value={form.notes}
+              onChange={e => handleFormChange('notes', e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-3 justify-end pt-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-accent hover:bg-accent-dark text-white rounded font-medium text-sm disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'SAVE'}
+            </button>
+            {isEdit && (
+              <button
+                onClick={handleDelete}
+                className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-sm"
+              >
+                DELETE
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\pages\Analytics.jsx =====
+
+import { useState, useEffect, useCallback } from 'react';
+import { format, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval } from 'date-fns';
+import { supabase } from '../lib/supabase';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer,
+  LineChart, Line,
+} from 'recharts';
+
+const C = { cash: '#16a34a', online: '#3b82f6', pending: '#f59e0b', delivered: '#16a34a' };
+
+export default function Analytics() {
+  const defaultTo = new Date().toISOString().slice(0, 10);
+  const defaultFrom = subMonths(new Date(), 12).toISOString().slice(0, 10);
+
+  const [fromDate, setFromDate] = useState(defaultFrom);
+  const [toDate, setToDate] = useState(defaultTo);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('orders')
+      .select('*, customers(name, phone)')
+      .gte('order_date', fromDate)
+      .lte('order_date', toDate)
+      .order('order_date', { ascending: false });
+    setOrders(data || []);
+    setLoading(false);
+  }, [fromDate, toDate]);
+
+  useEffect(() => {
+    loadData();
+    const channel = supabase.channel('analytics-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, loadData)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [loadData]);
+
+  const paidOrders = orders.filter(o => o.payment_status === 'paid');
+  const totalRevenue = paidOrders.reduce((s, o) => s + Number(o.amount || 0), 0);
+  const cashCollected = paidOrders.filter(o => o.payment_mode === 'cash').reduce((s, o) => s + Number(o.amount || 0), 0);
+  const onlineCollected = paidOrders.filter(o => o.payment_mode === 'online').reduce((s, o) => s + Number(o.amount || 0), 0);
+  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const deliveredCount = orders.filter(o => o.status === 'delivered').length;
+
+  const months = eachMonthOfInterval({
+    start: startOfMonth(new Date(fromDate)),
+    end: startOfMonth(new Date(toDate)),
+  });
+
+  const revenueByMonth = months.map(month => {
+    const label = format(month, 'MMM yy');
+    const mo = paidOrders.filter(o => {
+      const d = new Date(o.order_date);
+      return d >= startOfMonth(month) && d <= endOfMonth(month);
+    });
+    return {
+      month: label,
+      cash: mo.filter(o => o.payment_mode === 'cash').reduce((s, o) => s + Number(o.amount || 0), 0),
+      online: mo.filter(o => o.payment_mode === 'online').reduce((s, o) => s + Number(o.amount || 0), 0),
+    };
+  });
+
+  const ordersVolumeByMonth = months.map(month => {
+    const label = format(month, 'MMM yy');
+    const count = orders.filter(o => {
+      const d = new Date(o.order_date);
+      return d >= startOfMonth(month) && d <= endOfMonth(month);
+    }).length;
+    return { month: label, orders: count };
+  });
+
+  const statusData = [
+    { name: 'Pending', value: pendingCount, color: C.pending },
+    { name: 'Delivered', value: deliveredCount, color: C.delivered },
+  ];
+
+  const cashCount = orders.filter(o => o.payment_mode === 'cash').length;
+  const onlineCount = orders.filter(o => o.payment_mode === 'online').length;
+  const paymentModeData = [
+    { name: 'Cash', value: cashCount, color: C.cash },
+    { name: 'Online', value: onlineCount, color: C.online },
+  ];
+
+  const customerSpend = {};
+  orders.forEach(o => {
+    if (!customerSpend[o.customer_id]) {
+      customerSpend[o.customer_id] = {
+        name: o.customers?.name || '—',
+        phone: o.customers?.phone || '—',
+        totalSpent: 0,
+        visits: 0,
+      };
+    }
+    customerSpend[o.customer_id].totalSpent += Number(o.amount || 0);
+    customerSpend[o.customer_id].visits += 1;
+  });
+  const topCustomers = Object.values(customerSpend)
+    .sort((a, b) => b.totalSpent - a.totalSpent)
+    .slice(0, 10);
+
+  const kpiCards = [
+    { label: 'Total Orders', value: orders.length },
+    { label: 'Total Revenue', value: '₹' + totalRevenue.toLocaleString('en-IN') },
+    { label: 'Pending Orders', value: pendingCount },
+    { label: 'Delivered Orders', value: deliveredCount },
+    { label: 'Cash Collected', value: '₹' + cashCollected.toLocaleString('en-IN') },
+    { label: 'Online Collected', value: '₹' + onlineCollected.toLocaleString('en-IN') },
+  ];
+
+  if (loading) return <div className="text-center py-20 text-gray-500">Loading analytics...</div>;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <div className="flex items-center gap-3">
+          <div>
+            <label className="text-xs text-gray-500 block">From</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block">To</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {kpiCards.map(s => (
+          <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>
+            <p className="text-xl font-semibold text-gray-900">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Revenue Bar Chart */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Monthly Revenue — Cash vs Online</h2>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={revenueByMonth}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => '₹' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)} />
+            <Tooltip formatter={v => '₹' + Number(v).toLocaleString('en-IN')} />
+            <Legend />
+            <Bar dataKey="cash" name="Cash" fill={C.cash} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="online" name="Online" fill={C.online} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Two Donut Charts */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Order Status</h2>
+          <p className="text-xs text-gray-400 mb-3">Total: {orders.length}</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={statusData}
+                cx="50%" cy="50%"
+                innerRadius={55} outerRadius={85}
+                dataKey="value"
+                label={({ name, value }) => `${name}: ${value}`}
+                labelLine={false}
+              >
+                {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Payment Mode Split</h2>
+          <p className="text-xs text-gray-400 mb-3">Total: {orders.length}</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie
+                data={paymentModeData}
+                cx="50%" cy="50%"
+                innerRadius={55} outerRadius={85}
+                dataKey="value"
+                label={({ name, value }) => `${name}: ${value}`}
+                labelLine={false}
+              >
+                {paymentModeData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Monthly Orders Volume */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Monthly Orders Volume</h2>
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={ordersVolumeByMonth}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Line type="monotone" dataKey="orders" name="Orders" stroke={C.online} strokeWidth={2} dot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Top Customers */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-200">
+          <h2 className="text-sm font-semibold text-gray-700">Top 10 Customers by Spend</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Orders</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600">Total Spent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topCustomers.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-10 text-gray-400">No data in this range</td></tr>
+              ) : topCustomers.map((c, i) => (
+                <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-400 font-medium">{i + 1}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.phone}</td>
+                  <td className="px-4 py-3 text-gray-600">{c.visits}</td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-900">₹{c.totalSpent.toLocaleString('en-IN')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\pages\CustomerDetail.jsx =====
+
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
+
+// Keys to display with friendly labels for trouser
+const TROUSER_LABELS = {
+  length: 'Length', waist: 'Waist', hip: 'Hip',
+  bottom: 'Bottom', knee: 'Knee', thigh: 'Thigh',
+  fly: 'Fly', th: 'Th', stitching: 'Stitching',
+  k: 'K', kp: 'KP', bp: 'BP', sp: 'SP',
+};
+
+// Keys to display with friendly labels for shirt
+const SHIRT_LABELS = {
+  length: 'Length', chest: 'Chest', chest2: 'Chest 2',
+  sleeves: 'Sleeves', waist: 'Waist', shoulder: 'Shoulder', cuff: 'Cuff',
+  buShirt: 'BU-Shirt', buCut: 'BU-Cut', appleCut: 'Apple Cut',
+};
+
+function formatVal(v) {
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  return v || '—';
+}
+
+export default function CustomerDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [customer, setCustomer] = useState(null);
+  const [measurements, setMeasurements] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [cRes, mRes, oRes] = await Promise.all([
+      supabase.from('customers').select('*').eq('id', id).single(),
+      supabase.from('measurements').select('*').eq('customer_id', id).order('created_at', { ascending: false }),
+      supabase.from('orders').select('*').eq('customer_id', id).order('created_at', { ascending: false }),
+    ]);
+    setCustomer(cRes.data);
+    setMeasurements(mRes.data || []);
+    setOrders(oRes.data || []);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function updateOrder(orderId, updates) {
+    const { error } = await supabase.from('orders').update(updates).eq('id', orderId);
+    if (error) { toast.error('Update failed'); return; }
+    toast.success('Updated');
+    await load();
+  }
+
+  if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
+  if (!customer) return <div className="text-center py-20 text-red-600">Customer not found</div>;
+
+  const latestOrder = orders[0];
+  const latestTrouser = measurements.find(m => m.type === 'trouser');
+  const latestShirt = measurements.find(m => m.type === 'shirt');
+
+  
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      <Link to="/customers" className="text-primary hover:underline text-sm">← Back to list</Link>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary text-xl font-bold">
+            {customer.name?.charAt(0)?.toUpperCase()}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{customer.name}</h1>
+            {customer.serial_no && <p className="text-xs text-gray-400">Key: {customer.serial_no}</p>}
+          </div>
+        </div>
+
+        <div className="border border-gray-200 rounded-md p-4">
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Basic Info</h2>
+          <div className="grid grid-cols-2 gap-y-2 text-sm">
+            <span className="text-gray-500">Serial No.</span>
+            <span className="text-gray-900">{customer.serial_no || '—'}</span>
+            <span className="text-gray-500">Bill No.</span>
+            <span className="text-gray-900">{latestOrder?.bill_no || '—'}</span>
+            <span className="text-gray-500">Order Date</span>
+            <span className="text-gray-900">{latestOrder?.order_date ? format(new Date(latestOrder.order_date), 'dd MMM yyyy') : '—'}</span>
+            <span className="text-gray-500">Delivery Date</span>
+            <span className="text-gray-900">{latestOrder?.delivery_date ? format(new Date(latestOrder.delivery_date), 'dd MMM yyyy') : '—'}</span>
+            <span className="text-gray-500">Phone</span>
+            <span className="text-gray-900">{customer.phone || '—'}</span>
+            <span className="text-gray-500">Amount</span>
+            <span className="text-gray-900">{latestOrder ? '₹' + Number(latestOrder.amount || 0).toLocaleString('en-IN') : '—'}</span>
+            <span className="text-gray-500">Payment Mode</span>
+            <span className="text-gray-900 capitalize">{latestOrder?.payment_mode || '—'}</span>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3 text-sm flex-wrap">
+          <span className="text-gray-500">Status:</span>
+          {!latestOrder ? (
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">No Orders</span>
+          ) : (
+            <>
+              <span className={'px-2.5 py-0.5 rounded-full text-xs font-medium ' + (latestOrder.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800')}>
+                {latestOrder.status === 'delivered' ? 'Delivered' : 'Pending'}
+              </span>
+              <span className={'px-2.5 py-0.5 rounded-full text-xs font-medium ' + (latestOrder.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700')}>
+                {latestOrder.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Trouser Measurements — merged single section */}
+        {latestTrouser && (
+          <div className="mt-4 border border-gray-200 rounded-md p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Trouser Measurements</h3>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              {Object.entries(TROUSER_LABELS).map(([k, label]) => {
+                const v = latestTrouser.data?.[k];
+                if (v === '' || v === null || v === undefined) return null;
+                return (
+                  <div key={k}>
+                    <span className="text-gray-400 text-xs">{label}</span>
+                    <p className="font-medium text-gray-900">{formatVal(v)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Shirt Measurements */}
+        {latestShirt && (
+          <div className="mt-3 border border-gray-200 rounded-md p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Shirt Measurements</h3>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              {Object.entries(SHIRT_LABELS).map(([k, label]) => {
+                const v = latestShirt.data?.[k];
+                if (v === '' || v === null || v === undefined || v === false) return null;
+                return (
+                  <div key={k}>
+                    <span className="text-gray-400 text-xs">{label}</span>
+                    <p className="font-medium text-gray-900">{formatVal(v)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {customer.notes && (
+          <div className="mt-3 p-3 bg-amber-50 rounded text-sm text-gray-700">
+            <strong>Notes:</strong> {customer.notes}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-3 flex-wrap">
+          <button onClick={() => navigate('/customers/' + id + '/edit')}
+            className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded text-sm font-medium">
+            EDIT
+          </button>
+          {latestOrder && latestOrder.status === 'pending' && (
+            <button onClick={() => updateOrder(latestOrder.id, { status: 'delivered' })}
+              className="px-5 py-2 bg-accent hover:bg-accent-dark text-white rounded text-sm font-medium">
+              Mark Delivered
+            </button>
+          )}
+          {latestOrder && latestOrder.status === 'delivered' && (
+            <button onClick={() => updateOrder(latestOrder.id, { status: 'pending' })}
+              className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-medium">
+              Mark Undelivered
+            </button>
+          )}
+          {latestOrder && latestOrder.payment_status === 'unpaid' && (
+            <button onClick={() => updateOrder(latestOrder.id, { payment_status: 'paid' })}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium">
+              Mark Paid
+            </button>
+          )}
+          {latestOrder && latestOrder.payment_status === 'paid' && (
+            <button onClick={() => updateOrder(latestOrder.id, { payment_status: 'unpaid' })}
+              className="px-5 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm font-medium">
+              Mark Unpaid
+            </button>
+          )}
+        </div>
+      </div>
+
+      {orders.length > 1 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Order History ({orders.length})</h2>
+          <div className="space-y-2">
+            {orders.map(o => (
+              <div key={o.id} className="flex items-center justify-between p-3 border border-gray-100 rounded text-sm">
+                <div>
+                  <span className="font-medium">Bill #{o.bill_no || '—'}</span>
+                  <span className="text-gray-400 mx-2">·</span>
+                  <span className="text-gray-500">₹{Number(o.amount).toLocaleString('en-IN')}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + (o.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800')}>
+                    {o.status}
+                  </span>
+                  <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + (o.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700')}>
+                    {o.payment_status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+===== FILE: src\pages\CustomerList.jsx =====
+
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { useCustomers } from '../hooks/useCustomers';
+import { supabase } from '../lib/supabase';
+
+export default function CustomerList() {
+  const { customers, loading } = useCustomers();
+  const navigate = useNavigate();
+  const [filterBy, setFilterBy] = useState('name');
+  const [search, setSearch] = useState('');
+  const [orders, setOrders] = useState([]);
+
+  useEffect(() => {
+    const fetchOrders = () =>
+      supabase.from('orders').select('customer_id, bill_no, delivery_date, payment_status, payment_mode')
+        .order('created_at', { ascending: false })
+        .then(({ data }) => setOrders(data || []));
+
+    fetchOrders();
+
+    const channel = supabase.channel('customerlist-orders-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, fetchOrders)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  const getLatestOrder = (customerId) => orders.find(o => o.customer_id === customerId);
+
+  const filtered = customers.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    if (filterBy === 'name') return c.name?.toLowerCase().includes(q);
+    if (filterBy === 'mobile') return c.phone?.includes(q);
+    if (filterBy === 'bill') {
+      const order = getLatestOrder(c.id);
+      return order?.bill_no?.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-4">
+      <h1 className="text-2xl font-bold text-gray-900">Customer List</h1>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <div className="flex flex-wrap items-center gap-4">
+          {[
+            { key: 'name', label: 'Name' },
+            { key: 'mobile', label: 'Mobile' },
+            { key: 'bill', label: 'Bill No.' },
+          ].map(f => (
+            <label key={f.key} className="flex items-center gap-1.5 text-sm">
+              <input type="radio" name="filterBy" value={f.key} checked={filterBy === f.key} onChange={() => setFilterBy(f.key)} className="accent-primary" />
+              {f.label}
+            </label>
+          ))}
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={'Search by ' + filterBy + '...'}
+            className="flex-1 min-w-[150px] px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+          />
+          <button
+            onClick={() => {/* filtering is reactive — explicit no-op to signal button works */}}
+            className="px-4 py-1.5 bg-primary text-white rounded text-sm font-medium hover:bg-primary-dark"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Mobile</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Bill No.</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Payment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={5} className="text-center py-10 text-gray-400">No customers found</td></tr>
+              ) : (
+                filtered.map(c => {
+                  const order = getLatestOrder(c.id);
+                  return (
+                    <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => navigate('/customers/' + c.id)}>
+                      <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                      <td className="px-4 py-3 text-gray-600">{c.phone || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{order?.bill_no || c.serial_no || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{order?.delivery_date ? format(new Date(order.delivery_date), 'dd/MM/yyyy') : '—'}</td>
+                      <td className="px-4 py-3">
+                        {order ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>
+                            {order.payment_status === 'paid' ? '✓ Paid' : 'Unpaid'}
+                          </span>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\pages\Dashboard.jsx =====
+
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { supabase } from '../lib/supabase';
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({ totalCustomers: 0, pendingOrders: 0, deliveredOrders: 0 });
+  const [customers, setCustomers] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+    const channel = supabase.channel('dashboard-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, loadData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadData)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    const [customersRes, ordersRes] = await Promise.all([
+      supabase.from('customers').select('*').order('created_at', { ascending: false }),
+      supabase.from('orders')
+        .select('status, customer_id, bill_no, delivery_date, amount, payment_status, payment_mode, customers(name, phone)')
+        .order('created_at', { ascending: false }),
+    ]);
+
+    const orders = ordersRes.data || [];
+    const custs  = customersRes.data || [];
+
+    setStats({
+      totalCustomers: custs.length,
+      pendingOrders:   orders.filter(o => o.status === 'pending').length,
+      deliveredOrders: orders.filter(o => o.status === 'delivered').length,
+    });
+
+    const customerMap = custs.map(c => {
+      const custOrders = orders.filter(o => o.customer_id === c.id);
+      const latest = custOrders[0];
+      return {
+        ...c,
+        bill_no:        latest?.bill_no        || c.serial_no || '—',
+        delivery_date:  latest?.delivery_date  || null,
+        payment_status: latest?.payment_status || null,
+        payment_mode:   latest?.payment_mode   || null,
+      };
+    });
+    setCustomers(customerMap);
+    setLoading(false);
+  }
+
+  const filtered = customers.filter(c =>
+    c.name?.toLowerCase().includes(search.toLowerCase()) ||
+    c.phone?.includes(search) ||
+    c.serial_no?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
+
+  const statCards = [
+    { label: 'Total Customers',   value: stats.totalCustomers,   icon: '👥' },
+    { label: 'Pending Orders',    value: stats.pendingOrders,    icon: '📋' },
+    { label: 'Delivered Orders',  value: stats.deliveredOrders,  icon: '📦' },
+  ];
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-5">
+      <h1 className="text-2xl font-bold text-gray-900">Home</h1>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {statCards.map(s => (
+          <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3">
+            <span className="text-2xl">{s.icon}</span>
+            <div>
+              <p className="text-xs text-gray-500">{s.label}</p>
+              <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <Link
+          to="/customers/new"
+          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-md text-sm font-medium"
+        >
+          + Add Customer
+        </Link>
+        <div className="flex-1 relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+          <input
+            type="text"
+            placeholder="Search Customer..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Mobile</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Bill No.</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Payment</th>
+                {/* ── Actions column: fixed min-width so buttons never wrap ── */}
+                <th className="text-right px-4 py-3 font-medium text-gray-600" style={{ minWidth: '110px' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-10 text-gray-400">No customers found</td></tr>
+              ) : (
+                filtered.map(c => (
+                  <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.phone || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.bill_no}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {c.delivery_date ? format(new Date(c.delivery_date), 'dd/MM/yyyy') : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        c.payment_status === 'paid'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {c.payment_status === 'paid' ? '✓ Paid' : c.payment_status ? 'Unpaid' : '—'}
+                      </span>
+                    </td>
+                    {/*
+                      ── Actions cell ────────────────────────────────────────
+                      • whitespace-nowrap  → buttons never wrap to new line
+                      • inline-flex + gap  → buttons sit side-by-side always
+                    */}
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5 justify-end">
+                        <button
+                          onClick={() => navigate(`/customers/${c.id}`)}
+                          className="inline-flex items-center justify-center px-3 py-1.5 bg-primary text-white rounded text-xs font-semibold hover:bg-primary-dark transition leading-none"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => navigate(`/customers/${c.id}/edit`)}
+                          className="inline-flex items-center justify-center px-3 py-1.5 bg-accent text-white rounded text-xs font-semibold hover:bg-accent-dark transition leading-none"
+                        >
+                          Edit
+                        </button>
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\pages\Login.jsx =====
+
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth.jsx";
+
+export default function Login() {
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const result = signIn(username, password);
+    if (result.success) navigate("/dashboard");
+    else setError(result.error);
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-primary p-4">
+      <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-sm">
+        <div className="text-center mb-6">
+          <div className="text-4xl mb-2">✂️</div>
+          <h1 className="text-xl font-bold text-gray-900 tracking-wide">Vishwas Tailor</h1>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">🔒 Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              required
+            />
+          </div>
+
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-accent hover:bg-accent-dark text-white py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50"
+          >
+            {loading ? "Logging in..." : "LOGIN"}
+          </button>
+
+          
+        </form>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: src\pages\SearchFilter.jsx =====
+
+
+
+===== FILE: vite.config.js =====
+
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+});
