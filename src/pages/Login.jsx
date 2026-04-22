@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.jsx";
+import logoImage from "../assets/Logo.jpeg";
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -23,8 +24,12 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-primary p-4">
       <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-sm">
-        <div className="text-center mb-6">
-          <div className="text-4xl mb-2">✂️</div>
+        <div className="text-center mb-6 flex flex-col items-center">
+          <img 
+            src={logoImage} 
+            alt="Vishwas Tailor Logo" 
+            className="w-20 h-20 mb-3 object-cover rounded-full border-2 border-gray-100 shadow-sm"
+          />
           <h1 className="text-xl font-bold text-gray-900 tracking-wide">Vishwas Tailor</h1>
         </div>
 
