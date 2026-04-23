@@ -7,12 +7,13 @@ import toast from 'react-hot-toast';
 
 const emptyTrouser = {
   length: '', waist: '', hip: '', bottom: '', knee: '', thigh: '',
-  fly: '', th: '', stitching: 'yes', k: '', kp: '', bp: '', sp: '',
+  fly: '', stitching: 'yes', kp: '', bp: '', sp: '',
 };
 
 const emptyShirt = {
   length: '', chest: '',
   sleeves: '', waist: '', shoulder: '', cuff: '',
+  hip: '', collar: '',
   buShirt: false, buCut: false, appleCut: false,
 };
 
@@ -414,17 +415,14 @@ export default function AddCustomer() {
                   </div>
                 ))}
 
-                {[['Fly', 'fly'], ['Th', 'th']].map(([label, key]) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{label}</span>
-                    <input
-                      className={measureInput}
-                      value={trouser[key]}
-                      onChange={e => handleTrouserChange(key, e.target.value)}
-                    />
-                  </div>
-                ))}
-
+                <div className="flex items-center justify-between">
+  <span className="text-xs text-gray-500">Fly</span>
+  <input
+    className={measureInput}
+    value={trouser.fly}
+    onChange={e => handleTrouserChange('fly', e.target.value)}
+  />
+</div>
                 {/* Stitching — Yes / No selector */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">Stitching</span>
@@ -455,7 +453,7 @@ export default function AddCustomer() {
                 </div>
 
                 {/* K, KP, BP, SP */}
-                {[['K', 'k'], ['KP', 'kp'], ['BP', 'bp'], ['SP', 'sp']].map(([label, key]) => (
+                {[['KP', 'kp'], ['BP', 'bp'], ['SP', 'sp']].map(([label, key]) => (
                   <div key={key} className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">{label}</span>
                     <input
@@ -501,6 +499,14 @@ export default function AddCustomer() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">Cuff</span>
                   <input className={measureInput} value={shirt.cuff} onChange={e => handleShirtChange('cuff', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Hip</span>
+                  <input className={measureInput} value={shirt.hip} onChange={e => handleShirtChange('hip', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Collar</span>
+                  <input className={measureInput} value={shirt.collar} onChange={e => handleShirtChange('collar', e.target.value)} />
                 </div>
 
                 {/* BU-Shirt toggle */}

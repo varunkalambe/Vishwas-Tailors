@@ -10,10 +10,11 @@ export default function CustomerList() {
   const [filterBy, setFilterBy] = useState('name');
   const [search, setSearch] = useState('');
   const [orders, setOrders] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   useEffect(() => {
     const fetchOrders = () =>
-      supabase.from('orders').select('customer_id, bill_no, delivery_date, payment_status, payment_mode')
+      supabase.from('orders').select('customer_id, bill_no, delivery_date, payment_status, payment_mode, status')
         .order('created_at', { ascending: false })
         .then(({ data }) => setOrders(data || []));
 
@@ -28,15 +29,32 @@ export default function CustomerList() {
 
   const getLatestOrder = (customerId) => orders.find(o => o.customer_id === customerId);
 
+  const unpaidCount     = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status !== 'paid'; }).length;
+  const paidCount       = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status === 'paid'; }).length;
+  const pendingCount    = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'pending'; }).length;
+  const deliveredCount  = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'delivered'; }).length;
+
+  const statTabs = [
+    { key: 'all',       label: 'All',             count: customers.length },
+    { key: 'unpaid',    label: 'Unpaid',           count: unpaidCount },
+    { key: 'paid',      label: 'Paid',             count: paidCount },
+    { key: 'pending',   label: 'Delivery Pending', count: pendingCount },
+    { key: 'delivered', label: 'Delivered',        count: deliveredCount },
+  ];
+
   const filtered = customers.filter(c => {
+    const order = getLatestOrder(c.id);
+
+    if (statusFilter === 'unpaid'    && !(order && order.payment_status !== 'paid'))   return false;
+    if (statusFilter === 'paid'      && !(order && order.payment_status === 'paid'))   return false;
+    if (statusFilter === 'pending'   && !(order && order.status === 'pending'))        return false;
+    if (statusFilter === 'delivered' && !(order && order.status === 'delivered'))      return false;
+
     if (!search) return true;
     const q = search.toLowerCase();
-    if (filterBy === 'name') return c.name?.toLowerCase().includes(q);
+    if (filterBy === 'name')   return c.name?.toLowerCase().includes(q);
     if (filterBy === 'mobile') return c.phone?.includes(q);
-    if (filterBy === 'bill') {
-      const order = getLatestOrder(c.id);
-      return order?.bill_no?.toLowerCase().includes(q);
-    }
+    if (filterBy === 'bill')   return order?.bill_no?.toLowerCase().includes(q);
     return true;
   });
 
@@ -46,6 +64,29 @@ export default function CustomerList() {
     <div className="max-w-5xl mx-auto space-y-4">
       <h1 className="text-2xl font-bold text-gray-900">Customer List</h1>
 
+      {/* ── Status filter tabs with counts ── */}
+      <div className="flex flex-wrap gap-2">
+        {statTabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setStatusFilter(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+              statusFilter === t.key
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-primary hover:text-primary'
+            }`}
+          >
+            {t.label}
+            <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+              statusFilter === t.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+            }`}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Search bar ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-3">
         <div className="flex flex-wrap items-center gap-4">
           {[
@@ -66,7 +107,7 @@ export default function CustomerList() {
             className="flex-1 min-w-[150px] px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
           />
           <button
-            onClick={() => {/* filtering is reactive — explicit no-op to signal button works */}}
+            onClick={() => {}}
             className="px-4 py-1.5 bg-primary text-white rounded text-sm font-medium hover:bg-primary-dark"
           >
             Search
@@ -83,12 +124,13 @@ export default function CustomerList() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Mobile</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Bill No.</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Delivery</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Payment</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-10 text-gray-400">No customers found</td></tr>
+                <tr><td colSpan={6} className="text-center py-10 text-gray-400">No customers found</td></tr>
               ) : (
                 filtered.map(c => {
                   const order = getLatestOrder(c.id);
@@ -98,6 +140,13 @@ export default function CustomerList() {
                       <td className="px-4 py-3 text-gray-600">{c.phone || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{order?.bill_no || c.serial_no || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{order?.delivery_date ? format(new Date(order.delivery_date), 'dd/MM/yyyy') : '—'}</td>
+                      <td className="px-4 py-3">
+                        {order ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {order.status === 'delivered' ? 'Delivered' : 'Pending'}
+                          </span>
+                        ) : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         {order ? (
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}`}>

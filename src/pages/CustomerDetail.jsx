@@ -8,14 +8,15 @@ import toast from 'react-hot-toast';
 const TROUSER_LABELS = {
   length: 'Length', waist: 'Waist', hip: 'Hip',
   bottom: 'Bottom', knee: 'Knee', thigh: 'Thigh',
-  fly: 'Fly', th: 'Th', stitching: 'Stitching',
-  k: 'K', kp: 'KP', bp: 'BP', sp: 'SP',
+  fly: 'Fly', stitching: 'Stitching',
+  kp: 'KP', bp: 'BP', sp: 'SP',
 };
 
 // Keys to display with friendly labels for shirt
 const SHIRT_LABELS = {
   length: 'Length', chest: 'Chest', chest2: 'Chest 2',
   sleeves: 'Sleeves', waist: 'Waist', shoulder: 'Shoulder', cuff: 'Cuff',
+  hip: 'Hip', collar: 'Collar',
   buShirt: 'BU-Shirt', buCut: 'BU-Cut', appleCut: 'Apple Cut',
 };
 
