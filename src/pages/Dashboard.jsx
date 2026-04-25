@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -54,21 +53,16 @@ export default function Dashboard() {
     setLoading(false);
   }
 
-  async function handleDeleteOrder(e, orderId, customerName) {
-    e.stopPropagation();
-    if (!orderId) { toast.error('No order to delete'); return; }
-    if (!confirm('Delete this order for ' + customerName + '?')) return;
-    const { error } = await supabase.from('orders').delete().eq('id', orderId);
-    if (error) { toast.error('Failed to delete order'); return; }
-    toast.success('Order deleted');
-    loadData();
-  }
+  
 
   const filtered = customers.filter(c =>
+  c.latest_order_id &&
+  (
     c.name?.toLowerCase().includes(search.toLowerCase()) ||
     c.phone?.includes(search) ||
     c.serial_no?.toLowerCase().includes(search.toLowerCase())
-  );
+  )
+);
 
   if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
 
@@ -149,12 +143,7 @@ export default function Dashboard() {
                 onClick={e => { e.stopPropagation(); navigate(`/customers/${c.id}/edit`); }}
                 className="flex-1 py-1.5 bg-accent text-white rounded text-xs font-semibold"
               >Edit</button>
-              {c.latest_order_id && (
-                <button
-                  onClick={e => handleDeleteOrder(e, c.latest_order_id, c.name)}
-                  className="flex-1 py-1.5 bg-red-600 text-white rounded text-xs font-semibold"
-                >Delete</button>
-              )}
+              
             </div>
           </div>
         ))}
@@ -205,12 +194,7 @@ export default function Dashboard() {
                         onClick={() => navigate(`/customers/${c.id}/edit`)}
                         className="px-3 py-1.5 bg-accent text-white rounded text-xs font-semibold hover:bg-accent-dark transition"
                       >Edit</button>
-                      {c.latest_order_id && (
-                        <button
-                          onClick={e => handleDeleteOrder(e, c.latest_order_id, c.name)}
-                          className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition"
-                        >Delete</button>
-                      )}
+                      
                     </span>
                   </td>
                 </tr>
