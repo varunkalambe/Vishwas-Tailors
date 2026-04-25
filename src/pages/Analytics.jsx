@@ -227,7 +227,7 @@ export default function Analytics() {
           <h2 className="text-sm font-semibold text-gray-700">Top 10 Customers by Spend</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">#</th>
