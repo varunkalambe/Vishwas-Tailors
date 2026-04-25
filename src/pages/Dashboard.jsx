@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export default function Dashboard() {
     const [customersRes, ordersRes] = await Promise.all([
       supabase.from('customers').select('*').order('created_at', { ascending: false }),
       supabase.from('orders')
-        .select('status, customer_id, bill_no, delivery_date, amount, payment_status, payment_mode, customers(name, phone)')
+        .select('id, status, customer_id, bill_no, delivery_date, amount, payment_status, payment_mode')
         .order('created_at', { ascending: false }),
     ]);
 
@@ -42,14 +43,25 @@ export default function Dashboard() {
       const latest = custOrders[0];
       return {
         ...c,
-        bill_no:        latest?.bill_no        || c.serial_no || '—',
-        delivery_date:  latest?.delivery_date  || null,
-        payment_status: latest?.payment_status || null,
-        payment_mode:   latest?.payment_mode   || null,
+        latest_order_id: latest?.id             || null,
+        bill_no:         latest?.bill_no        || c.serial_no || '—',
+        delivery_date:   latest?.delivery_date  || null,
+        payment_status:  latest?.payment_status || null,
+        payment_mode:    latest?.payment_mode   || null,
       };
     });
     setCustomers(customerMap);
     setLoading(false);
+  }
+
+  async function handleDeleteOrder(e, orderId, customerName) {
+    e.stopPropagation();
+    if (!orderId) { toast.error('No order to delete'); return; }
+    if (!confirm('Delete this order for ' + customerName + '?')) return;
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (error) { toast.error('Failed to delete order'); return; }
+    toast.success('Order deleted');
+    loadData();
   }
 
   const filtered = customers.filter(c =>
@@ -70,7 +82,6 @@ export default function Dashboard() {
     <div className="w-full max-w-5xl mx-auto space-y-4">
       <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Home</h1>
 
-      {/* Stat cards — 3 cols always, shrink text on xs */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         {statCards.map(s => (
           <div key={s.label} className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
@@ -83,7 +94,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Add + Search row */}
       <div className="flex gap-2 items-center">
         <Link
           to="/customers/new"
@@ -103,7 +113,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Mobile: card list  |  sm+: table */}
+      {/* Mobile cards */}
       <div className="sm:hidden space-y-2">
         {filtered.length === 0 ? (
           <p className="text-center py-10 text-gray-400 text-sm">No customers found</p>
@@ -139,6 +149,12 @@ export default function Dashboard() {
                 onClick={e => { e.stopPropagation(); navigate(`/customers/${c.id}/edit`); }}
                 className="flex-1 py-1.5 bg-accent text-white rounded text-xs font-semibold"
               >Edit</button>
+              {c.latest_order_id && (
+                <button
+                  onClick={e => handleDeleteOrder(e, c.latest_order_id, c.name)}
+                  className="flex-1 py-1.5 bg-red-600 text-white rounded text-xs font-semibold"
+                >Delete</button>
+              )}
             </div>
           </div>
         ))}
@@ -189,6 +205,12 @@ export default function Dashboard() {
                         onClick={() => navigate(`/customers/${c.id}/edit`)}
                         className="px-3 py-1.5 bg-accent text-white rounded text-xs font-semibold hover:bg-accent-dark transition"
                       >Edit</button>
+                      {c.latest_order_id && (
+                        <button
+                          onClick={e => handleDeleteOrder(e, c.latest_order_id, c.name)}
+                          className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-semibold hover:bg-red-700 transition"
+                        >Delete</button>
+                      )}
                     </span>
                   </td>
                 </tr>

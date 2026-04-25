@@ -1196,15 +1196,30 @@ export default function AddCustomer() {
     }
   }
 
-  async function handleDelete() {
-    if (!isEdit) return;
-    if (!orderId) { toast.error('No order to delete'); return; }
-    if (!confirm('Delete this order for ' + form.name + '?')) return;
-    const { error } = await supabase.from('orders').delete().eq('id', orderId);
-    if (error) { toast.error('Failed to delete order'); return; }
-    toast.success('Order deleted');
-    navigate(`/customers/${id}`);
+async function handleDelete() {
+  if (!isEdit) return;
+  if (!confirm('Delete this order for ' + form.name + '?')) return;
+
+  let targetOrderId = orderId;
+
+  if (!targetOrderId) {
+    const { data: fallback } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    targetOrderId = fallback?.id || null;
   }
+
+  if (!targetOrderId) { toast.error('No order found to delete'); return; }
+
+  const { error } = await supabase.from('orders').delete().eq('id', targetOrderId);
+  if (error) { toast.error('Failed to delete order'); return; }
+  toast.success('Order deleted');
+  navigate(`/customers/${id}`);
+}
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none";
   const labelCls = "text-xs text-gray-500 mb-1 block";
