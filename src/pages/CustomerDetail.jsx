@@ -68,7 +68,7 @@ export default function CustomerDetail() {
     <div className="max-w-3xl mx-auto space-y-4">
       <Link to="/customers" className="text-primary hover:underline text-sm">← Back to list</Link>
 
-      <div className="bg-white rounded-lg border border-gray-200 p-5">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary text-xl font-bold">
             {customer.name?.charAt(0)?.toUpperCase()}
@@ -125,7 +125,7 @@ export default function CustomerDetail() {
         {latestTrouser && (
           <div className="mt-4 border border-gray-200 rounded-md p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">Trouser Measurements</h3>
-            <div className="grid grid-cols-3 gap-2 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
               {Object.entries(TROUSER_LABELS).map(([k, label]) => {
                 const v = latestTrouser.data?.[k];
                 if (v === '' || v === null || v === undefined) return null;
@@ -144,7 +144,7 @@ export default function CustomerDetail() {
         {latestShirt && (
           <div className="mt-3 border border-gray-200 rounded-md p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">Shirt Measurements</h3>
-            <div className="grid grid-cols-3 gap-2 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
               {Object.entries(SHIRT_LABELS).map(([k, label]) => {
                 const v = latestShirt.data?.[k];
                 if (v === '' || v === null || v === undefined || v === false) return null;
@@ -183,7 +183,7 @@ export default function CustomerDetail() {
             </button>
           )}
           {latestOrder && latestOrder.payment_status === 'unpaid' && (
-            <button onClick={() => updateOrder(latestOrder.id, { payment_status: 'paid' })}
+            <button onClick={() => updateOrder(latestOrder.id, { payment_status: 'paid', advance: latestOrder.amount })}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium">
               Mark Paid
             </button>
@@ -198,11 +198,11 @@ export default function CustomerDetail() {
       </div>
 
       {orders.length > 1 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-5">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">Order History ({orders.length})</h2>
           <div className="space-y-2">
             {orders.map(o => (
-              <div key={o.id} className="flex items-center justify-between p-3 border border-gray-100 rounded text-sm">
+              <div key={o.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border border-gray-100 rounded text-sm">
                 <div>
                   <span className="font-medium">Bill #{o.bill_no || '—'}</span>
                   <span className="text-gray-400 mx-2">·</span>

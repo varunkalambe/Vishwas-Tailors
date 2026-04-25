@@ -11,7 +11,7 @@ export default function OrderCard({ order }) {
   const balance = Math.max(0, amount - advance);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 hover:shadow-md transition">
       {/* ── Top row: Bill No + Amount ── */}
       <div className="flex justify-between items-start mb-3">
         <div>
@@ -85,7 +85,7 @@ export default function OrderCard({ order }) {
         )}
         {order.payment_status === 'unpaid' && (
           <button
-            onClick={() => updateOrder(order.id, { payment_status: 'paid' })}
+            onClick={() => updateOrder(order.id, { payment_status: 'paid', advance: order.amount })}
             className="text-xs px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-md font-medium"
           >
             Mark Paid

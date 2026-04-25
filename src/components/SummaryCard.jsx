@@ -8,11 +8,11 @@ export default function SummaryCard({ title, value, icon, color = 'blue' }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition">
+    <div className="bg-white rounded-xl shadow-sm p-4 sm:p-5 border border-gray-100 hover:shadow-md transition">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-500 font-medium">{title}</p>
-          <p className="text-3xl font-bold mt-2 text-gray-900">{value}</p>
+          <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2 text-gray-900">{value}</p>
         </div>
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${colors[color]}`}>
           {icon}

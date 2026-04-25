@@ -117,14 +117,14 @@ export default function Analytics() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="text-xs text-gray-500 block">From</label>
             <input
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+              className="w-full sm:w-auto px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
           <div>
@@ -133,7 +133,7 @@ export default function Analytics() {
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+              className="w-full sm:w-auto px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
         </div>

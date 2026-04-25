@@ -324,7 +324,7 @@ export default function AddCustomer() {
       <h1 className="text-2xl font-bold text-gray-900">{isEdit ? 'Edit Customer' : 'Add Customer'}</h1>
 
       <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-5">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* ── Basic Info ──────────────────────────────────────────────── */}
           <div className="space-y-3">

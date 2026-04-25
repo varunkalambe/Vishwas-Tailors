@@ -88,30 +88,34 @@ export default function CustomerList() {
 
       {/* ── Search bar ── */}
       <div className="bg-white rounded-lg border border-gray-200 p-3">
-        <div className="flex flex-wrap items-center gap-4">
-          {[
-            { key: 'name', label: 'Name' },
-            { key: 'mobile', label: 'Mobile' },
-            { key: 'bill', label: 'Bill No.' },
-          ].map(f => (
-            <label key={f.key} className="flex items-center gap-1.5 text-sm">
-              <input type="radio" name="filterBy" value={f.key} checked={filterBy === f.key} onChange={() => setFilterBy(f.key)} className="accent-primary" />
-              {f.label}
-            </label>
-          ))}
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={'Search by ' + filterBy + '...'}
-            className="flex-1 min-w-[150px] px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
-          />
-          <button
-            onClick={() => {}}
-            className="px-4 py-1.5 bg-primary text-white rounded text-sm font-medium hover:bg-primary-dark"
-          >
-            Search
-          </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex items-center gap-4">
+            {[
+              { key: 'name', label: 'Name' },
+              { key: 'mobile', label: 'Mobile' },
+              { key: 'bill', label: 'Bill No.' },
+            ].map(f => (
+              <label key={f.key} className="flex items-center gap-1.5 text-sm">
+                <input type="radio" name="filterBy" value={f.key} checked={filterBy === f.key} onChange={() => setFilterBy(f.key)} className="accent-primary" />
+                {f.label}
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2 sm:flex-1">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={'Search by ' + filterBy + '...'}
+              className="flex-1 min-w-0 px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none"
+            />
+            <button
+              onClick={() => {}}
+              className="px-4 py-1.5 bg-primary text-white rounded text-sm font-medium hover:bg-primary-dark whitespace-nowrap"
+            >
+              Search
+            </button>
+          </div>
         </div>
       </div>
 
