@@ -94,6 +94,12 @@ export default function CustomerDetail() {
             <span className="text-gray-900">{customer.phone || '—'}</span>
             <span className="text-gray-500">Amount</span>
             <span className="text-gray-900">{latestOrder ? '₹' + Number(latestOrder.amount || 0).toLocaleString('en-IN') : '—'}</span>
+            <span className="text-gray-500">Advance</span>
+            <span className="text-gray-900">{latestOrder ? '₹' + Number(latestOrder.advance || 0).toLocaleString('en-IN') : '—'}</span>
+            <span className="text-gray-500">Balance</span>
+            <span className="text-gray-900 font-semibold text-red-600">
+              {latestOrder ? '₹' + Math.max(0, Number(latestOrder.amount || 0) - Number(latestOrder.advance || 0)).toLocaleString('en-IN') : '—'}
+            </span>
             <span className="text-gray-500">Payment Mode</span>
             <span className="text-gray-900 capitalize">{latestOrder?.payment_mode || '—'}</span>
           </div>
@@ -201,6 +207,14 @@ export default function CustomerDetail() {
                   <span className="font-medium">Bill #{o.bill_no || '—'}</span>
                   <span className="text-gray-400 mx-2">·</span>
                   <span className="text-gray-500">₹{Number(o.amount).toLocaleString('en-IN')}</span>
+                  {o.advance > 0 && (
+                    <>
+                      <span className="text-gray-400 mx-2">·</span>
+                      <span className="text-gray-500">Adv ₹{Number(o.advance).toLocaleString('en-IN')}</span>
+                      <span className="text-gray-400 mx-2">·</span>
+                      <span className="text-red-600 font-medium">Bal ₹{Math.max(0, Number(o.amount) - Number(o.advance)).toLocaleString('en-IN')}</span>
+                    </>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <span className={'px-2 py-0.5 rounded-full text-xs font-medium ' + (o.status === 'delivered' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800')}>

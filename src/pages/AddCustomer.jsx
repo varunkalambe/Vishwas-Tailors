@@ -73,6 +73,7 @@ export default function AddCustomer() {
   const [shirt, setShirt] = useState(emptyShirt);
   const [billNo, setBillNo] = useState('');
   const [amount, setAmount] = useState('');
+  const [advance, setAdvance] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
   const [paymentStatus, setPaymentStatus] = useState('unpaid');
   const [orderId, setOrderId] = useState(null);
@@ -138,6 +139,7 @@ export default function AddCustomer() {
       setOrderId(latestOrder.id);
       setBillNo(latestOrder.bill_no || '');
       setAmount(latestOrder.amount != null ? String(latestOrder.amount) : '');
+      setAdvance(latestOrder.advance != null ? String(latestOrder.advance) : '');
       setPaymentMode(latestOrder.payment_mode || 'cash');
       setPaymentStatus(latestOrder.payment_status || 'unpaid');
       // ── FIX: use order_date for the "Order Date" field, not customer.created_at
@@ -228,6 +230,7 @@ export default function AddCustomer() {
           const orderPayload = {
             bill_no: billNo,
             amount: Number(amount) || 0,
+            advance: Number(advance) || 0,
             delivery_date: form.delivery_date || null,
             payment_mode: paymentMode,
             payment_status: paymentStatus,
@@ -246,6 +249,7 @@ export default function AddCustomer() {
             customer_id: id,
             bill_no: billNo,
             amount: Number(amount) || 0,
+            advance: Number(advance) || 0,
             order_date: form.date || new Date().toISOString().slice(0, 10),
             delivery_date: form.delivery_date || null,
             status: 'pending',
@@ -281,6 +285,7 @@ export default function AddCustomer() {
             customer_id: customer.id,
             bill_no: billNo,
             amount: Number(amount) || 0,
+            advance: Number(advance) || 0,
             order_date: form.date || new Date().toISOString().slice(0, 10),
             delivery_date: form.delivery_date || null,
             status: 'pending',
@@ -351,6 +356,16 @@ export default function AddCustomer() {
             <div>
               <label className={labelCls}>Amount</label>
               <input type="number" className={inputCls} value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Advance</label>
+              <input type="number" className={inputCls} value={advance} onChange={e => setAdvance(e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Balance</label>
+              <div className="w-full px-3 py-2 border border-gray-200 rounded text-sm bg-gray-50 text-gray-900 font-medium">
+                ₹{Math.max(0, (Number(amount) || 0) - (Number(advance) || 0)).toLocaleString('en-IN')}
+              </div>
             </div>
             <div>
               <label className={labelCls}>Payment Mode</label>
