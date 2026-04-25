@@ -14,10 +14,10 @@ const TROUSER_LABELS = {
 
 // Keys to display with friendly labels for shirt
 const SHIRT_LABELS = {
-  length: 'Length', chest: 'Chest', chest2: 'Chest 2',
-  sleeves: 'Sleeves', waist: 'Waist', shoulder: 'Shoulder', cuff: 'Cuff',
-  hip: 'Hip', collar: 'Collar',
-  buShirt: 'BU-Shirt', buCut: 'BU-Cut', appleCut: 'Apple Cut',
+  length: 'Length', chest: 'Chest',
+  waist: 'Waist', hip: 'Hip', shoulder: 'Shoulder', sleeves: 'Sleeves',
+  collar: 'Collar', cuff: 'Cuff',
+  buShirt: 'BU-Shirt', buCut: 'BU-Cut', appleCut: 'Apple Cut', patti: 'Patti',
 };
 
 function formatVal(v) {

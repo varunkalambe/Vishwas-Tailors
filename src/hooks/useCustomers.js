@@ -38,6 +38,9 @@ export function useCustomers() {
   }
 
   async function deleteCustomer(id) {
+    // Delete child rows first (orders, measurements), then the customer
+    await supabase.from('orders').delete().eq('customer_id', id);
+    await supabase.from('measurements').delete().eq('customer_id', id);
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) { toast.error('Failed to delete'); return false; }
     toast.success('Customer deleted');

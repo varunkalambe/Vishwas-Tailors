@@ -31,9 +31,8 @@ export default function Dashboard() {
     const orders = ordersRes.data || [];
     const custs  = customersRes.data || [];
 
-    const custsWithOrders = custs.filter(c => orders.some(o => o.customer_id === c.id));
-setStats({
-  totalCustomers:  custsWithOrders.length,
+    setStats({
+  totalCustomers:  custs.length,
   pendingOrders:   orders.filter(o => o.status === 'pending').length,
   deliveredOrders: orders.filter(o => o.status === 'delivered').length,
 });
@@ -57,13 +56,10 @@ setStats({
   
 
   const filtered = customers.filter(c =>
-  c.latest_order_id &&
-  (
     c.name?.toLowerCase().includes(search.toLowerCase()) ||
     c.phone?.includes(search) ||
     c.serial_no?.toLowerCase().includes(search.toLowerCase())
-  )
-);
+  );
 
   if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
 

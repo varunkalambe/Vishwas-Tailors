@@ -7,14 +7,14 @@ import toast from 'react-hot-toast';
 
 const emptyTrouser = {
   length: '', waist: '', hip: '', bottom: '', knee: '', thigh: '',
-  fly: '', stitching: 'yes', kp: '', bp: '', sp: '',
+  fly: '', stitching: 'yes', kp: false, bp: '', sp: false,
 };
 
 const emptyShirt = {
   length: '', chest: '',
-  sleeves: '', waist: '', shoulder: '', cuff: '',
-  hip: '', collar: '',
-  buShirt: false, buCut: false, appleCut: false,
+  waist: '', hip: '', shoulder: '', sleeves: '',
+  collar: '', cuff: '',
+  buShirt: false, buCut: false, appleCut: false, patti: false,
 };
 
 /* ── Apple-style toggle helper ─────────────────────────────────────── */
@@ -307,27 +307,36 @@ export default function AddCustomer() {
 
 async function handleDelete() {
   if (!isEdit) return;
-  if (!confirm('Delete this order for ' + form.name + '?')) return;
+  if (!confirm('Delete customer "' + form.name + '" and all their data?')) return;
 
-  let targetOrderId = orderId;
-
-  if (!targetOrderId) {
-    const { data: fallback } = await supabase
+  try {
+    // 1. Delete ALL orders for this customer
+    const { error: ordErr } = await supabase
       .from('orders')
-      .select('id')
-      .eq('customer_id', id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    targetOrderId = fallback?.id || null;
+      .delete()
+      .eq('customer_id', id);
+    if (ordErr) throw ordErr;
+
+    // 2. Delete ALL measurements for this customer
+    const { error: measErr } = await supabase
+      .from('measurements')
+      .delete()
+      .eq('customer_id', id);
+    if (measErr) throw measErr;
+
+    // 3. Delete the customer row itself
+    const { error: custErr } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id);
+    if (custErr) throw custErr;
+
+    toast.success('Customer deleted');
+    navigate('/customers');
+  } catch (err) {
+    toast.error('Failed to delete: ' + (err?.message || 'unknown error'));
+    console.error('Delete error:', err);
   }
-
-  if (!targetOrderId) { toast.error('No order found to delete'); return; }
-
-  const { error } = await supabase.from('orders').delete().eq('id', targetOrderId);
-  if (error) { toast.error('Failed to delete order'); return; }
-  toast.success('Order deleted');
-  navigate(`/customers/${id}`);
 }
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none";
@@ -482,17 +491,37 @@ async function handleDelete() {
                   </div>
                 </div>
 
-                {/* K, KP, BP, SP */}
-                {[['KP', 'kp'], ['BP', 'bp'], ['SP', 'sp']].map(([label, key]) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{label}</span>
-                    <input
-                      className={measureInput}
-                      value={trouser[key]}
-                      onChange={e => handleTrouserChange(key, e.target.value)}
-                    />
+                {/* BP — text input */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">BP</span>
+                  <input
+                    className={measureInput}
+                    value={trouser.bp}
+                    onChange={e => handleTrouserChange('bp', e.target.value)}
+                  />
+                </div>
+
+                {/* KP — toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">KP</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${trouser.kp ? 'text-green-600' : 'text-gray-400'}`}>
+                      {trouser.kp ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={!!trouser.kp} onChange={val => handleTrouserChange('kp', val)} />
                   </div>
-                ))}
+                </div>
+
+                {/* SP — toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">SP</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${trouser.sp ? 'text-green-600' : 'text-gray-400'}`}>
+                      {trouser.sp ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={!!trouser.sp} onChange={val => handleTrouserChange('sp', val)} />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -515,28 +544,28 @@ async function handleDelete() {
                   <input className={measureInput} value={shirt.chest} onChange={e => handleShirtChange('chest', e.target.value)} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Sleeves</span>
-                  <input className={measureInput} value={shirt.sleeves} onChange={e => handleShirtChange('sleeves', e.target.value)} />
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">Waist</span>
                   <input className={measureInput} value={shirt.waist} onChange={e => handleShirtChange('waist', e.target.value)} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Shoulder</span>
-                  <input className={measureInput} value={shirt.shoulder} onChange={e => handleShirtChange('shoulder', e.target.value)} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Cuff</span>
-                  <input className={measureInput} value={shirt.cuff} onChange={e => handleShirtChange('cuff', e.target.value)} />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">Hip</span>
                   <input className={measureInput} value={shirt.hip} onChange={e => handleShirtChange('hip', e.target.value)} />
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Shoulder</span>
+                  <input className={measureInput} value={shirt.shoulder} onChange={e => handleShirtChange('shoulder', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Sleeves</span>
+                  <input className={measureInput} value={shirt.sleeves} onChange={e => handleShirtChange('sleeves', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">Collar</span>
                   <input className={measureInput} value={shirt.collar} onChange={e => handleShirtChange('collar', e.target.value)} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Cuff</span>
+                  <input className={measureInput} value={shirt.cuff} onChange={e => handleShirtChange('cuff', e.target.value)} />
                 </div>
 
                 {/* BU-Shirt toggle */}
@@ -569,6 +598,17 @@ async function handleDelete() {
                       {shirt.appleCut ? 'ON' : 'OFF'}
                     </span>
                     <AppleToggle value={shirt.appleCut} onChange={val => handleShirtChange('appleCut', val)} />
+                  </div>
+                </div>
+
+                {/* Patti toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Patti</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${shirt.patti ? 'text-green-600' : 'text-gray-400'}`}>
+                      {shirt.patti ? 'ON' : 'OFF'}
+                    </span>
+                    <AppleToggle value={!!shirt.patti} onChange={val => handleShirtChange('patti', val)} />
                   </div>
                 </div>
               </div>

@@ -725,6 +725,9 @@ export function useCustomers() {
   }
 
   async function deleteCustomer(id) {
+    // Delete child rows first (orders, measurements), then the customer
+    await supabase.from('orders').delete().eq('customer_id', id);
+    await supabase.from('measurements').delete().eq('customer_id', id);
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) { toast.error('Failed to delete'); return false; }
     toast.success('Customer deleted');
@@ -1198,27 +1201,36 @@ export default function AddCustomer() {
 
 async function handleDelete() {
   if (!isEdit) return;
-  if (!confirm('Delete this order for ' + form.name + '?')) return;
+  if (!confirm('Delete customer "' + form.name + '" and all their data?')) return;
 
-  let targetOrderId = orderId;
-
-  if (!targetOrderId) {
-    const { data: fallback } = await supabase
+  try {
+    // 1. Delete ALL orders for this customer
+    const { error: ordErr } = await supabase
       .from('orders')
-      .select('id')
-      .eq('customer_id', id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    targetOrderId = fallback?.id || null;
+      .delete()
+      .eq('customer_id', id);
+    if (ordErr) throw ordErr;
+
+    // 2. Delete ALL measurements for this customer
+    const { error: measErr } = await supabase
+      .from('measurements')
+      .delete()
+      .eq('customer_id', id);
+    if (measErr) throw measErr;
+
+    // 3. Delete the customer row itself
+    const { error: custErr } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id);
+    if (custErr) throw custErr;
+
+    toast.success('Customer deleted');
+    navigate('/customers');
+  } catch (err) {
+    toast.error('Failed to delete: ' + (err?.message || 'unknown error'));
+    console.error('Delete error:', err);
   }
-
-  if (!targetOrderId) { toast.error('No order found to delete'); return; }
-
-  const { error } = await supabase.from('orders').delete().eq('id', targetOrderId);
-  if (error) { toast.error('Failed to delete order'); return; }
-  toast.success('Order deleted');
-  navigate(`/customers/${id}`);
 }
 
   const inputCls = "w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none";
@@ -2034,12 +2046,12 @@ export default function CustomerList() {
 
   const getLatestOrder = (customerId) => orders.find(o => o.customer_id === customerId);
 
-  const customersWithOrders = customers.filter(c => !!getLatestOrder(c.id));
+  const customersWithOrders = customers;
 
-const unpaidCount    = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.payment_status !== 'paid'; }).length;
-const paidCount      = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.payment_status === 'paid'; }).length;
-const pendingCount   = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.status === 'pending'; }).length;
-const deliveredCount = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.status === 'delivered'; }).length;
+const unpaidCount    = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status !== 'paid'; }).length;
+const paidCount      = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status === 'paid'; }).length;
+const pendingCount   = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'pending'; }).length;
+const deliveredCount = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'delivered'; }).length;
 
 const statTabs = [
   { key: 'all',       label: 'All',       count: customersWithOrders.length },
@@ -2051,10 +2063,10 @@ const statTabs = [
 
 const filtered = customersWithOrders.filter(c => {
   const order = getLatestOrder(c.id);
-  if (statusFilter === 'unpaid'    && order.payment_status === 'paid')   return false;
-  if (statusFilter === 'paid'      && order.payment_status !== 'paid')   return false;
-  if (statusFilter === 'pending'   && order.status !== 'pending')        return false;
-  if (statusFilter === 'delivered' && order.status !== 'delivered')      return false;
+  if (statusFilter === 'unpaid'    && (!order || order.payment_status === 'paid'))   return false;
+  if (statusFilter === 'paid'      && (!order || order.payment_status !== 'paid'))   return false;
+  if (statusFilter === 'pending'   && (!order || order.status !== 'pending'))        return false;
+  if (statusFilter === 'delivered' && (!order || order.status !== 'delivered'))      return false;
   if (!search) return true;
   const q = search.toLowerCase();
   if (filterBy === 'name')   return c.name?.toLowerCase().includes(q);
@@ -2275,10 +2287,10 @@ export default function Dashboard() {
     const custs  = customersRes.data || [];
 
     setStats({
-      totalCustomers:  custs.length,
-      pendingOrders:   orders.filter(o => o.status === 'pending').length,
-      deliveredOrders: orders.filter(o => o.status === 'delivered').length,
-    });
+  totalCustomers:  custs.length,
+  pendingOrders:   orders.filter(o => o.status === 'pending').length,
+  deliveredOrders: orders.filter(o => o.status === 'delivered').length,
+});
 
     const customerMap = custs.map(c => {
       const custOrders = orders.filter(o => o.customer_id === c.id);
@@ -2299,13 +2311,10 @@ export default function Dashboard() {
   
 
   const filtered = customers.filter(c =>
-  c.latest_order_id &&
-  (
     c.name?.toLowerCase().includes(search.toLowerCase()) ||
     c.phone?.includes(search) ||
     c.serial_no?.toLowerCase().includes(search.toLowerCase())
-  )
-);
+  );
 
   if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
 
