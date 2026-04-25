@@ -31,11 +31,12 @@ export default function Dashboard() {
     const orders = ordersRes.data || [];
     const custs  = customersRes.data || [];
 
-    setStats({
-      totalCustomers:  custs.length,
-      pendingOrders:   orders.filter(o => o.status === 'pending').length,
-      deliveredOrders: orders.filter(o => o.status === 'delivered').length,
-    });
+    const custsWithOrders = custs.filter(c => orders.some(o => o.customer_id === c.id));
+setStats({
+  totalCustomers:  custsWithOrders.length,
+  pendingOrders:   orders.filter(o => o.status === 'pending').length,
+  deliveredOrders: orders.filter(o => o.status === 'delivered').length,
+});
 
     const customerMap = custs.map(c => {
       const custOrders = orders.filter(o => o.customer_id === c.id);

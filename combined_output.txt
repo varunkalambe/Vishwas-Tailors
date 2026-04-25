@@ -2034,32 +2034,34 @@ export default function CustomerList() {
 
   const getLatestOrder = (customerId) => orders.find(o => o.customer_id === customerId);
 
-  const unpaidCount    = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status !== 'paid'; }).length;
-  const paidCount      = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.payment_status === 'paid'; }).length;
-  const pendingCount   = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'pending'; }).length;
-  const deliveredCount = customers.filter(c => { const o = getLatestOrder(c.id); return o && o.status === 'delivered'; }).length;
+  const customersWithOrders = customers.filter(c => !!getLatestOrder(c.id));
 
-  const statTabs = [
-    { key: 'all',       label: 'All',       count: customers.length },
-    { key: 'unpaid',    label: 'Unpaid',    count: unpaidCount },
-    { key: 'paid',      label: 'Paid',      count: paidCount },
-    { key: 'pending',   label: 'Pending',   count: pendingCount },
-    { key: 'delivered', label: 'Delivered', count: deliveredCount },
-  ];
+const unpaidCount    = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.payment_status !== 'paid'; }).length;
+const paidCount      = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.payment_status === 'paid'; }).length;
+const pendingCount   = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.status === 'pending'; }).length;
+const deliveredCount = customersWithOrders.filter(c => { const o = getLatestOrder(c.id); return o.status === 'delivered'; }).length;
 
-  const filtered = customers.filter(c => {
-    const order = getLatestOrder(c.id);
-    if (statusFilter === 'unpaid'    && !(order && order.payment_status !== 'paid'))  return false;
-    if (statusFilter === 'paid'      && !(order && order.payment_status === 'paid'))  return false;
-    if (statusFilter === 'pending'   && !(order && order.status === 'pending'))       return false;
-    if (statusFilter === 'delivered' && !(order && order.status === 'delivered'))     return false;
-    if (!search) return true;
-    const q = search.toLowerCase();
-    if (filterBy === 'name')   return c.name?.toLowerCase().includes(q);
-    if (filterBy === 'mobile') return c.phone?.includes(q);
-    if (filterBy === 'bill')   return order?.bill_no?.toLowerCase().includes(q);
-    return true;
-  });
+const statTabs = [
+  { key: 'all',       label: 'All',       count: customersWithOrders.length },
+  { key: 'unpaid',    label: 'Unpaid',    count: unpaidCount },
+  { key: 'paid',      label: 'Paid',      count: paidCount },
+  { key: 'pending',   label: 'Pending',   count: pendingCount },
+  { key: 'delivered', label: 'Delivered', count: deliveredCount },
+];
+
+const filtered = customersWithOrders.filter(c => {
+  const order = getLatestOrder(c.id);
+  if (statusFilter === 'unpaid'    && order.payment_status === 'paid')   return false;
+  if (statusFilter === 'paid'      && order.payment_status !== 'paid')   return false;
+  if (statusFilter === 'pending'   && order.status !== 'pending')        return false;
+  if (statusFilter === 'delivered' && order.status !== 'delivered')      return false;
+  if (!search) return true;
+  const q = search.toLowerCase();
+  if (filterBy === 'name')   return c.name?.toLowerCase().includes(q);
+  if (filterBy === 'mobile') return c.phone?.includes(q);
+  if (filterBy === 'bill')   return order?.bill_no?.toLowerCase().includes(q);
+  return true;
+});
 
   if (loading) return <div className="text-center py-20 text-gray-500">Loading...</div>;
 
